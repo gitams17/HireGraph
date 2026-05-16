@@ -1,0 +1,10 @@
+# Core framework versions verified for the Phase 1 baseline (2026-11-21).
+Django==6.1.3
+djangorestframework==3.18.3
+
+# PostgreSQL driver and environment configuration.
+psycopg[binary]>=3.2,<4
+python-dotenv>=1.1,<2
+
+# Explicit CORS handling for the separate local Next.js origin.
+django-cors-headers>=4.7,<5
