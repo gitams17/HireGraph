@@ -1,4 +1,4 @@
-"""Django settings for the HireFlow AI local development foundation."""
+"""Django settings for the HireGraph AI local development foundation."""
 
 import os
 from pathlib import Path
@@ -36,6 +36,10 @@ CSRF_TRUSTED_ORIGINS = csv_setting(
 )
 CORS_ALLOW_CREDENTIALS = True
 
+# ---------------------------------------------------------------------------
+# Application definition
+# ---------------------------------------------------------------------------
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -45,6 +49,9 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "corsheaders",
+    # Project apps — accounts must precede organizations (FK dependency).
+    "accounts",
+    "organizations",
     "core",
 ]
 
@@ -79,6 +86,16 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+# ---------------------------------------------------------------------------
+# Custom user model — must be set before the first migration.
+# ---------------------------------------------------------------------------
+
+AUTH_USER_MODEL = "accounts.User"
+
+# ---------------------------------------------------------------------------
+# Database — PostgreSQL via psycopg3
+# ---------------------------------------------------------------------------
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -94,6 +111,62 @@ DATABASES = {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Cache — Redis (provisioned in docker-compose.yml)
+# ---------------------------------------------------------------------------
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": (
+            f"redis://:{os.getenv('REDIS_PASSWORD', 'local-redis-password-change-me')}"
+            f"@{os.getenv('REDIS_HOST', '127.0.0.1')}"
+            f":{os.getenv('REDIS_PORT', '6379')}/1"
+        ),
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Session — stored in DB, delivered via HttpOnly cookie
+# ---------------------------------------------------------------------------
+
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS), False locally
+
+# ---------------------------------------------------------------------------
+# CSRF — cookie readable by JS (non-HttpOnly) so the frontend can set the header
+# ---------------------------------------------------------------------------
+
+CSRF_COOKIE_HTTPONLY = False   # Must be False so JS can read csrftoken cookie
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = not DEBUG
+
+# ---------------------------------------------------------------------------
+# Django REST Framework
+# ---------------------------------------------------------------------------
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    # Return 403 (not 401) for unauthenticated requests because we use session auth.
+    "UNAUTHENTICATED_USER": None,
+}
+
+# ---------------------------------------------------------------------------
+# Password validation
+# ---------------------------------------------------------------------------
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -101,10 +174,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# ---------------------------------------------------------------------------
+# Localisation
+# ---------------------------------------------------------------------------
+
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
 USE_TZ = True
+
+# ---------------------------------------------------------------------------
+# Static files
+# ---------------------------------------------------------------------------
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
