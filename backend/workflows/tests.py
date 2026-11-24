@@ -265,3 +265,251 @@ class JobDescriptionEndpointsTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data["thread_id"], thread_id)
         self.assertEqual(len(resp.data["events"]), 1)
+
+
+class Phase8RecruitmentWorkflowTests(APITestCase):
+    def setUp(self):
+        self.owner = make_user("ceo@phase8.com")
+        self.recruiter = make_user("recruiter@phase8.com")
+        self.org = make_org("Phase8 Corp", self.owner)
+        add_member(self.org, self.recruiter, "recruiter")
+
+        self.job = JobRequisition.objects.create(
+            organization=self.org,
+            title="Senior Distributed Systems Engineer",
+            department="Infrastructure",
+            location="Remote",
+            employment_type="full_time",
+            experience_min=5,
+            experience_max=10,
+            required_skills=["Python", "Go", "PostgreSQL", "Kafka"],
+            responsibilities=["Scale message queues", "Design distributed consensus"],
+            created_by=self.recruiter,
+        )
+
+        from candidates.models import Candidate
+        from applications.models import Application, ApplicationStage
+
+        self.candidate = Candidate.objects.create(
+            organization=self.org,
+            first_name="Elena",
+            last_name="Rostova",
+            email="elena.rostova@example.com",
+            current_title="Staff Engineer",
+            total_experience_years=8,
+        )
+
+        self.application = Application.objects.create(
+            organization=self.org,
+            job=self.job,
+            candidate=self.candidate,
+            stage=ApplicationStage.APPLIED,
+            created_by=self.recruiter,
+        )
+
+        self.memory_cp = MemorySaver()
+
+    @patch("orchestration.nodes.generate.get_llm_provider")
+    def test_end_to_end_recruitment_workflow_happy_path(self, mock_provider):
+        """
+        Verify complete end-to-end master recruitment workflow:
+        JD Generation -> Human JD Approval -> External Publication ->
+        Applicant Volume Monitoring -> Screening & Interviews -> Offer Preparation ->
+        Human Offer Approval -> Candidate Acceptance -> Candidate Onboarding.
+        """
+        mock_provider.return_value = FakeLLMProvider(mode="success")
+
+        # 1. Start recruitment workflow
+        execution = WorkflowOrchestrationService.start_recruitment_workflow(
+            job=self.job,
+            user=self.recruiter,
+            minimum_applicants=1,
+            checkpointer=self.memory_cp,
+        )
+
+        # Halted at first human gate: JD approval interrupt
+        self.assertEqual(execution.status, WorkflowStatus.INTERRUPTED)
+        self.assertEqual(execution.current_step, "approval_interrupt")
+
+        # 2. Resume with Human JD Approval
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={"decision": "approved", "feedback": "Approved as is"},
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        # Check external publication occurred
+        from workflows.models import JobPublication, JobPublicationStatus, Offer, OfferStatus, OnboardingTask
+        publications = JobPublication.objects.filter(job=self.job)
+        self.assertTrue(publications.filter(status=JobPublicationStatus.PUBLISHED).count() >= 2)
+
+        # Check workflow reached offer approval interrupt
+        self.assertEqual(execution.status, WorkflowStatus.INTERRUPTED)
+        self.assertEqual(execution.current_step, "offer_approval_interrupt")
+
+        # Verify Offer draft was prepared
+        self.assertTrue(Offer.objects.filter(application=self.application).exists())
+        offer = Offer.objects.get(application=self.application)
+        self.assertEqual(offer.status, OfferStatus.PENDING_APPROVAL)
+
+        # 3. Resume with Human Offer Approval & Candidate Acceptance
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={
+                "decision": "approved",
+                "candidate_response": "accepted",
+            },
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        # Completed & onboarding initiated
+        self.assertEqual(execution.status, WorkflowStatus.COMPLETED)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.stage, "selected")
+
+        # Verify onboarding checklist tasks were created
+        tasks = OnboardingTask.objects.filter(application=self.application)
+        self.assertTrue(tasks.count() >= 4)
+
+    @patch("orchestration.nodes.generate.get_llm_provider")
+    def test_insufficient_applicant_count_routes_to_revision(self, mock_provider):
+        """
+        When applicant count is below minimum threshold, workflow routes
+        to notify recruiter and request JD revision.
+        """
+        mock_provider.return_value = FakeLLMProvider(mode="success")
+
+        # Delete existing application so applicant count = 0
+        self.application.delete()
+
+        # Start with minimum_applicants = 3
+        execution = WorkflowOrchestrationService.start_recruitment_workflow(
+            job=self.job,
+            user=self.recruiter,
+            minimum_applicants=3,
+            checkpointer=self.memory_cp,
+        )
+
+        # Approve initial JD
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={"decision": "approved"},
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        # Applicant monitoring detected insufficient applicants (0 < 3)
+        # Should route to notify_recruiter -> capture_feedback -> generate_revision -> generate_jd -> approval_interrupt
+        self.assertEqual(execution.status, WorkflowStatus.INTERRUPTED)
+        self.assertEqual(execution.current_step, "approval_interrupt")
+        self.assertTrue(execution.state_snapshot.get("revision_count", 0) >= 1)
+
+    @patch("orchestration.nodes.generate.get_llm_provider")
+    def test_offer_negotiation_and_revision_loop(self, mock_provider):
+        """
+        When candidate responds with negotiation/counter-proposal, workflow
+        routes through revise_offer back to offer_approval_interrupt.
+        """
+        mock_provider.return_value = FakeLLMProvider(mode="success")
+
+        execution = WorkflowOrchestrationService.start_recruitment_workflow(
+            job=self.job,
+            user=self.recruiter,
+            minimum_applicants=1,
+            checkpointer=self.memory_cp,
+        )
+
+        # Approve JD
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={"decision": "approved"},
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        # Approve initial offer, but candidate responds with negotiation
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={
+                "decision": "approved",
+                "candidate_response": "negotiation",
+                "counter_salary": 155000.0,
+                "negotiation_notes": "Candidate requesting 155k base.",
+            },
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        # Looped back to offer approval interrupt with revised salary
+        self.assertEqual(execution.status, WorkflowStatus.INTERRUPTED)
+        self.assertEqual(execution.current_step, "offer_approval_interrupt")
+        self.assertEqual(execution.state_snapshot.get("base_salary"), 155000.0)
+
+    @patch("workflows.adapters.job_boards.MockJobBoardAdapter.publish")
+    @patch("orchestration.nodes.generate.get_llm_provider")
+    def test_job_board_failure_and_checkpoint_retry(self, mock_provider, mock_publish):
+        """
+        Transient adapter failure marks execution FAILED.
+        Retrying execution recovers from checkpoint.
+        """
+        mock_provider.return_value = FakeLLMProvider(mode="success")
+        mock_publish.side_effect = RuntimeError("503 External Job Board Down")
+
+        execution = WorkflowOrchestrationService.start_recruitment_workflow(
+            job=self.job,
+            user=self.recruiter,
+            minimum_applicants=1,
+            checkpointer=self.memory_cp,
+        )
+
+        # Approve JD - publish_job will fail
+        execution = WorkflowOrchestrationService.resume_recruitment_workflow(
+            execution=execution,
+            resume_data={"decision": "approved"},
+            user=self.recruiter,
+            checkpointer=self.memory_cp,
+        )
+
+        self.assertEqual(execution.status, WorkflowStatus.FAILED)
+        self.assertIn("503", execution.error_message)
+
+        # Now fix transient failure and retry
+        from workflows.models import JobPublication, JobPublicationStatus
+        mock_publish.side_effect = None
+        mock_publish.return_value = JobPublication(
+            job=self.job,
+            board_name="mock_board",
+            status=JobPublicationStatus.PUBLISHED,
+        )
+
+        retried = WorkflowOrchestrationService.retry_workflow_execution(
+            execution=execution,
+            checkpointer=self.memory_cp,
+        )
+        self.assertEqual(retried.retry_count, 1)
+        self.assertNotEqual(retried.status, WorkflowStatus.FAILED)
+
+    def test_workflow_rest_endpoints_and_dashboard_metrics(self):
+        """Verify REST API endpoints for starting, listing, resuming, and dashboard metrics."""
+        self.client.force_authenticate(self.recruiter)
+
+        # 1. Start recruitment workflow via API
+        start_url = "/api/v1/workflows/recruitment/start/"
+        resp = self.client.post(start_url, {"job_id": str(self.job.id), "minimum_applicants": 1})
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        exec_id = resp.data["id"]
+
+        # 2. List workflows
+        list_url = "/api/v1/workflows/"
+        resp_list = self.client.get(list_url)
+        self.assertEqual(resp_list.status_code, status.HTTP_200_OK)
+        self.assertTrue(resp_list.data["count"] >= 1)
+
+        # 3. Dashboard metrics
+        dash_url = "/api/v1/workflows/dashboard/"
+        resp_dash = self.client.get(dash_url)
+        self.assertEqual(resp_dash.status_code, status.HTTP_200_OK)
+        self.assertIn("total_executions", resp_dash.data)
+        self.assertIn("pending_approvals_count", resp_dash.data)
