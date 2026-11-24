@@ -17,6 +17,8 @@ htmlcov/
 # Django
 staticfiles/
 media/
+media_private/
+backend/media_private/
 
 # Node / Next.js
 node_modules/
