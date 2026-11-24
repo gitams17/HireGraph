@@ -577,6 +577,106 @@ export interface SuggestedQuestionsResponse {
   competency_questions: SuggestedQuestion[];
 }
 
+// ---------------------------------------------------------------------------
+// Phase 8: Advanced Workflow Automation
+// ---------------------------------------------------------------------------
+
+export type WorkflowExecutionStatus = "running" | "interrupted" | "completed" | "failed";
+
+export interface WorkflowEventItem {
+  id: string;
+  event_type: string;
+  payload: Record<string, any>;
+  created_at: string;
+}
+
+export interface WorkflowExecutionDetail {
+  id: string;
+  thread_id: string;
+  organization?: string;
+  job_id: string;
+  job_title?: string;
+  application?: string | null;
+  candidate_name?: string | null;
+  workflow_type: string;
+  status: WorkflowExecutionStatus;
+  current_step: string;
+  error_message: string;
+  state_snapshot?: Record<string, any>;
+  retry_count: number;
+  last_retried_at?: string | null;
+  started_at: string;
+  completed_at?: string | null;
+  events?: WorkflowEventItem[];
+}
+
+export interface WorkflowDashboardMetrics {
+  total_executions: number;
+  active_count: number;
+  pending_approvals_count: number;
+  failed_count: number;
+  completed_count: number;
+  recent_events: {
+    id: string;
+    thread_id: string;
+    job_title: string;
+    event_type: string;
+    payload: Record<string, any>;
+    created_at: string;
+  }[];
+}
+
+export interface JobOffer {
+  id: string;
+  organization: string;
+  application: string;
+  candidate_name?: string;
+  candidate_email?: string;
+  job_title?: string;
+  base_salary: number;
+  currency: string;
+  equity: string;
+  sign_on_bonus?: number | null;
+  start_date: string;
+  status: string;
+  candidate_response?: string;
+  negotiation_notes?: string;
+  counter_salary?: number | null;
+  terms: string;
+  approved_by?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OnboardingChecklistTask {
+  id: string;
+  organization: string;
+  application: string;
+  candidate_name?: string;
+  title: string;
+  category: "compliance" | "it_setup" | "hr_paperwork" | "team_intro";
+  status: "pending" | "in_progress" | "completed" | "skipped";
+  due_date?: string | null;
+  assigned_to?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+}
+
+export interface JobBoardPublication {
+  id: string;
+  job: string;
+  job_title?: string;
+  board_name: string;
+  external_id: string;
+  status: "pending" | "published" | "failed" | "expired";
+  posting_url: string;
+  payload: Record<string, any>;
+  published_at?: string | null;
+  created_at: string;
+}
+
+
 
 
 
