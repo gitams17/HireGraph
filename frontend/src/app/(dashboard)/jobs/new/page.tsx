@@ -16,9 +16,9 @@ export default function NewJobPage() {
   useEffect(() => {
     if (!user) return;
     api
-      .get<{ results: Organization[] }>("/api/v1/organizations/")
+      .get<Organization[] | { results: Organization[] }>("/api/v1/organizations/")
       .then((data) => {
-        const list = data.results ?? [];
+        const list = Array.isArray(data) ? data : (data?.results ?? []);
         setOrgs(list);
         if (list.length > 0) setSelectedOrgId(list[0].id);
       })

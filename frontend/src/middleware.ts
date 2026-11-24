@@ -20,11 +20,6 @@ export function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get("sessionid");
   const isAuthenticated = Boolean(sessionCookie?.value);
 
-  // --- Authenticated user hitting an auth-only page → dashboard ---
-  if (isAuthenticated && AUTH_ONLY_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
   // --- Unauthenticated user hitting a protected page → login ---
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   if (!isAuthenticated && isProtected) {

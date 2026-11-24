@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, extractApiErrors } from "@/lib/api";
-import type { User } from "@/types";
+import { extractApiErrors } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface FormState {
   email: string;
@@ -16,6 +16,7 @@ interface FormState {
 
 export default function LoginForm() {
   const router = useRouter();
+  const { login } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +31,7 @@ export default function LoginForm() {
     setSubmitting(true);
     setError("");
     try {
-      await api.post<User>("/api/v1/auth/login/", form);
+      await login(form);
       router.push("/dashboard");
     } catch (err) {
       setError(extractApiErrors(err));

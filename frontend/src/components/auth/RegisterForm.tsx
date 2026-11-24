@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, extractApiErrors } from "@/lib/api";
-import type { User } from "@/types";
+import { extractApiErrors } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface FormState {
   email: string;
@@ -24,6 +24,7 @@ const INITIAL: FormState = {
 
 export default function RegisterForm() {
   const router = useRouter();
+  const { register } = useAuth();
   const [form, setForm] = useState<FormState>(INITIAL);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +43,7 @@ export default function RegisterForm() {
     setSubmitting(true);
     setError("");
     try {
-      await api.post<User>("/api/v1/auth/register/", form);
+      await register(form);
       // After registration the user is logged in; go to onboarding.
       router.push("/onboarding");
     } catch (err) {

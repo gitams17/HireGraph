@@ -13,8 +13,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     api
-      .get<Organization[]>("/api/v1/organizations/")
-      .then(setOrgs)
+      .get<Organization[] | { results: Organization[] }>("/api/v1/organizations/")
+      .then((data) => {
+        setOrgs(Array.isArray(data) ? data : (data?.results ?? []));
+      })
       .catch(() => setOrgs([]))
       .finally(() => setLoadingOrgs(false));
   }, []);

@@ -18,6 +18,8 @@ import type { User } from "@/types";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  login: (credentials: { email: string; password: string }) => Promise<User>;
+  register: (data: any) => Promise<User>;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -54,6 +56,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchUser();
   }, [fetchUser]);
 
+  const login = useCallback(async (credentials: { email: string; password: string }) => {
+    const loggedInUser = await api.post<User>("/api/v1/auth/login/", credentials);
+    setUser(loggedInUser);
+    return loggedInUser;
+  }, []);
+
+  const register = useCallback(async (data: any) => {
+    const registeredUser = await api.post<User>("/api/v1/auth/register/", data);
+    setUser(registeredUser);
+    return registeredUser;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.post("/api/v1/auth/logout/", {});
@@ -65,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, refresh: fetchUser, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, refresh: fetchUser, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
