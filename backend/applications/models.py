@@ -103,3 +103,52 @@ class ApplicationEvent(models.Model):
 
     def __str__(self) -> str:
         return f"Event [{self.event_type}]: {self.from_stage} -> {self.to_stage} on {self.application_id}"
+
+
+class AnalysisStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PROCESSING = "processing", "Processing"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+
+
+class ResumeAnalysis(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="resume_analyses",
+    )
+    resume = models.ForeignKey(
+        "candidates.Resume",
+        on_delete=models.CASCADE,
+        related_name="analyses",
+    )
+    model_name = models.CharField(max_length=100, default="fake")
+    prompt_version = models.CharField(max_length=50, default="v1.0")
+    evaluation_rubric_version = models.CharField(max_length=50, default="v1.0")
+
+    extracted_data = models.JSONField(default=dict, blank=True)
+    assessment = models.JSONField(default=dict, blank=True)
+    ats_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    recruiter_feedback = models.JSONField(default=dict, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=AnalysisStatus.choices,
+        default=AnalysisStatus.PENDING,
+    )
+    error_message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["application", "-created_at"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Analysis [{self.status}] score={self.ats_score} for App {self.application_id}"
+

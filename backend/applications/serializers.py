@@ -3,7 +3,7 @@ from rest_framework import serializers
 from candidates.models import Candidate, Resume
 from candidates.serializers import ResumeSerializer
 from jobs.models import JobRequisition
-from .models import Application, ApplicationEvent, ApplicationStage
+from .models import Application, ApplicationEvent, ApplicationStage, ResumeAnalysis
 from .permissions import CAN_MANAGE_APPLICATIONS, get_application_membership
 
 
@@ -72,6 +72,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     job = serializers.SerializerMethodField()
     resume = ResumeSerializer(read_only=True)
     events = ApplicationEventSerializer(many=True, read_only=True)
+    latest_analysis = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -85,11 +86,18 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "rating",
             "rejection_reason",
             "notes",
+            "latest_analysis",
             "events",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_latest_analysis(self, obj: Application):
+        analysis = obj.resume_analyses.first()
+        if analysis:
+            return ResumeAnalysisSerializer(analysis).data
+        return None
 
     def get_candidate(self, obj: Application):
         return {
@@ -199,3 +207,43 @@ class ApplicationStageUpdateSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default="")
     rejection_reason = serializers.CharField(required=False, allow_blank=True, default="")
     rating = serializers.IntegerField(required=False, min_value=1, max_value=5, allow_null=True)
+
+
+class ResumeAnalysisSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ResumeAnalysis
+        fields = [
+            "id",
+            "application_id",
+            "resume_id",
+            "model_name",
+            "prompt_version",
+            "evaluation_rubric_version",
+            "extracted_data",
+            "assessment",
+            "ats_score",
+            "recruiter_feedback",
+            "status",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "application_id",
+            "resume_id",
+            "model_name",
+            "prompt_version",
+            "evaluation_rubric_version",
+            "status",
+            "error_message",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class RecruiterReviewSerializer(serializers.Serializer):
+    extracted_data = serializers.JSONField(required=False)
+    recruiter_feedback = serializers.JSONField(required=False)
+    ats_score = serializers.IntegerField(required=False, min_value=0, max_value=100)
+
