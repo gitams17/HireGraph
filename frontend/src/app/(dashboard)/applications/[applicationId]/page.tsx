@@ -168,6 +168,33 @@ export default function ApplicationDetailPage({ params }: ApplicationDetailPageP
       {/* Stage Controller */}
       <StageSelector application={application} onStageUpdated={handleStageUpdated} />
 
+      {/* AI Resume Screening Banner Card */}
+      <div className="rounded-xl border border-zinc-200 bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 text-white shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="text-base font-bold">✨ AI Resume Screening & ATS Assessment</span>
+            {application.latest_analysis?.ats_score != null && (
+              <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-xs font-bold text-white">
+                ATS Score: {application.latest_analysis.ats_score}/100
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-zinc-300 max-w-xl">
+            {application.latest_analysis
+              ? application.latest_analysis.assessment?.summary_headline ||
+                "Evidence-based candidate assessment and skill breakdown available."
+              : "Analyze this candidate's resume with LangGraph to extract skills, calculate an explainable ATS score, and verify requirements."}
+          </p>
+        </div>
+
+        <Link
+          href={`/applications/${application.id}/analysis`}
+          className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-zinc-900 hover:bg-zinc-100 transition-colors shrink-0 text-center"
+        >
+          {application.latest_analysis ? "View Full AI Analysis →" : "Run AI Screening →"}
+        </Link>
+      </div>
+
       {/* Audit Timeline */}
       <ApplicationTimeline events={application.events || []} />
     </div>

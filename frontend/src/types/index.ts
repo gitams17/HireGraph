@@ -309,9 +309,102 @@ export interface Application {
     status: string;
   };
   resume?: Resume | null;
+  latest_analysis?: ResumeAnalysis | null;
   events?: ApplicationEvent[];
   created_at: string;
   updated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 6: AI-Powered Resume Screening
+// ---------------------------------------------------------------------------
+
+export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
+
+export interface SkillEvidenceItem {
+  skill: string;
+  status: "found" | "partial" | "missing";
+  evidence: string;
+}
+
+export interface CandidateAssessment {
+  ats_score: number;
+  summary_headline: string;
+  required_skills_evaluation: SkillEvidenceItem[];
+  relevant_experience_summary: string;
+  missing_evidence: string[];
+  strengths: string[];
+  concerns_or_gaps: string[];
+  reviewer_recommendation:
+    | "strong_match"
+    | "potential_match"
+    | "requires_human_review"
+    | "does_not_meet_minimum";
+  recommendation_rationale: string;
+}
+
+export interface EducationItem {
+  institution: string;
+  degree: string;
+  field_of_study: string;
+  start_year?: number | null;
+  end_year?: number | null;
+  grade_or_gpa?: string | null;
+}
+
+export interface ExperienceItem {
+  company: string;
+  title: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_current: boolean;
+  description: string;
+  technologies_used: string[];
+}
+
+export interface ProjectItem {
+  name: string;
+  description: string;
+  technologies: string[];
+  url?: string | null;
+}
+
+export interface CertificationItem {
+  name: string;
+  issuer: string;
+  issue_year?: number | null;
+}
+
+export interface ParsedResume {
+  candidate_name: string;
+  email?: string | null;
+  phone?: string | null;
+  location?: string | null;
+  summary: string;
+  technical_skills: string[];
+  soft_skills: string[];
+  education: EducationItem[];
+  experience: ExperienceItem[];
+  projects: ProjectItem[];
+  certifications: CertificationItem[];
+}
+
+export interface ResumeAnalysis {
+  id: string;
+  application_id: string;
+  resume_id: string;
+  model_name: string;
+  prompt_version: string;
+  evaluation_rubric_version: string;
+  extracted_data: ParsedResume;
+  assessment: CandidateAssessment;
+  ats_score: number | null;
+  recruiter_feedback?: Record<string, any>;
+  status: AnalysisStatus;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 
 
