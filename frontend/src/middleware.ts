@@ -13,7 +13,7 @@ import type { NextRequest } from "next/server";
 const AUTH_ONLY_PATHS = ["/login", "/register"];
 
 // Routes that REQUIRE authentication (prefix-matched).
-const PROTECTED_PREFIXES = ["/dashboard", "/settings", "/onboarding"];
+const PROTECTED_PREFIXES = ["/dashboard", "/settings", "/onboarding", "/jobs"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -43,6 +43,7 @@ export default function DashboardLayout({
         </div>
         <nav className="flex-1 px-4 py-4 space-y-1">
           <NavLink href="/dashboard">Dashboard</NavLink>
+          <NavLink href="/jobs">Jobs</NavLink>
           <NavLink href="/settings/profile">Profile</NavLink>
           <NavLink href="/settings/organization">Organisation</NavLink>
           <NavLink href="/settings/members">Members</NavLink>

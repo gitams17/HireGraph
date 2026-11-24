@@ -61,3 +61,48 @@ export interface ApiError {
   status: number;
   data: Record<string, string | string[]> & { detail?: string; non_field_errors?: string[] };
 }
+
+// ---------------------------------------------------------------------------
+// Jobs
+// ---------------------------------------------------------------------------
+
+export type JobStatus = "draft" | "open" | "paused" | "closed";
+export type EmploymentType = "full_time" | "part_time" | "contract" | "internship";
+
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  draft: "Draft",
+  open: "Open",
+  paused: "Paused",
+  closed: "Closed",
+};
+
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  full_time: "Full-time",
+  part_time: "Part-time",
+  contract: "Contract",
+  internship: "Internship",
+};
+
+export interface JobRequisition {
+  id: string;
+  organization: string; // UUID
+  title: string;
+  department: string;
+  location: string;
+  employment_type: EmploymentType;
+  experience_min: number | null;
+  experience_max: number | null;
+  required_skills: string[];
+  responsibilities: string[];
+  status: JobStatus;
+  created_by: User;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
