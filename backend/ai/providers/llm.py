@@ -19,6 +19,14 @@ from ai.parsers.resume_screening import (
     ProjectItem,
     SkillEvidence,
 )
+from ai.parsers.interview_assistant import (
+    InterviewQuestionsSchema,
+    SuggestedQuestion,
+)
+from ai.prompts.interview_assistant import (
+    INTERVIEW_ASSISTANT_SYSTEM_PROMPT,
+    INTERVIEW_ASSISTANT_USER_PROMPT,
+)
 from ai.prompts.job_description import (
     JD_GENERATION_SYSTEM_PROMPT,
     JD_GENERATION_USER_PROMPT,
@@ -41,6 +49,15 @@ class BaseLLMProvider(Protocol):
         ...
 
     def evaluate_candidate_resume(self, parsed_resume: dict[str, Any], requirements: dict[str, Any]) -> CandidateAssessmentSchema:
+        ...
+
+    def generate_interview_questions(
+        self,
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        interview_type: str = "technical",
+        focus_areas: list[str] | None = None,
+    ) -> InterviewQuestionsSchema:
         ...
 
 
@@ -182,6 +199,77 @@ class FakeLLMProvider:
             recommendation_rationale="Candidate meets all foundational technical requirements. Human interview recommended.",
         )
 
+    def generate_interview_questions(
+        self,
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        interview_type: str = "technical",
+        focus_areas: list[str] | None = None,
+    ) -> InterviewQuestionsSchema:
+        if self.mode == "error":
+            raise RuntimeError("LLM API service unavailable.")
+        if self.mode == "invalid_schema":
+            raise ValueError("LLM returned non-conforming schema structure.")
+        if self.custom_output and isinstance(self.custom_output, InterviewQuestionsSchema):
+            return self.custom_output
+
+        title = job_data.get("title", "Software Engineer")
+        skills = job_data.get("required_skills", ["Python", "Django"])
+        primary_skill = skills[0] if skills else "Python"
+
+        return InterviewQuestionsSchema(
+            technical_questions=[
+                SuggestedQuestion(
+                    id="tech_1",
+                    question=f"Can you explain your approach to architecting scalable database models and handling concurrent writes in {primary_skill}?",
+                    category="technical",
+                    evaluation_criteria=f"Evaluates depth of experience in {primary_skill}, transactions, locking, and index tuning.",
+                    follow_up_hint="Ask how they would diagnose slow queries in production.",
+                ),
+                SuggestedQuestion(
+                    id="tech_2",
+                    question="How do you enforce API rate limiting and security boundaries in high-throughput microservices?",
+                    category="technical",
+                    evaluation_criteria="Evaluates awareness of caching, token-bucket algorithms, and OWASP best practices.",
+                    follow_up_hint="Inquire about distributed Redis rate-limiting vs gateway-level enforcement.",
+                ),
+            ],
+            behavioural_questions=[
+                SuggestedQuestion(
+                    id="beh_1",
+                    question="Describe a situation where you had a strong technical disagreement with a peer or team lead. How did you resolve it?",
+                    category="behavioural",
+                    evaluation_criteria="Evaluates empathy, constructive debate, consensus-building, and egoless engineering.",
+                    follow_up_hint="Ask what the final outcome was and what they learned.",
+                ),
+                SuggestedQuestion(
+                    id="beh_2",
+                    question="Tell me about a time when a critical bug made it into production. How did you communicate and remediate?",
+                    category="behavioural",
+                    evaluation_criteria="Evaluates ownership, blameless post-mortem culture, and incident response under pressure.",
+                    follow_up_hint="Ask what automated safeguards were added afterward.",
+                ),
+            ],
+            project_questions=[
+                SuggestedQuestion(
+                    id="proj_1",
+                    question=f"In your recent projects, what was the most complex architecture decision you made for {title}?",
+                    category="project",
+                    evaluation_criteria="Evaluates technical ownership, trade-off analysis, and clarity of articulation.",
+                    follow_up_hint="Ask what they would do differently given today's constraints.",
+                ),
+            ],
+            competency_questions=[
+                SuggestedQuestion(
+                    id="comp_1",
+                    question=f"What testing strategies (unit, integration, contract) do you mandate before shipping code for a {title} role?",
+                    category="competency",
+                    evaluation_criteria="Evaluates test-driven mindset, code coverage pragmatism, and CI/CD rigor.",
+                    follow_up_hint="Ask about their approach to testing async workers or third-party integrations.",
+                ),
+            ],
+        )
+
 
 class GeminiProvider:
     """Google Gemini LLM Provider using langchain-google-genai."""
@@ -193,6 +281,7 @@ class GeminiProvider:
         self.structured_jd = self.llm.with_structured_output(JobDescriptionSchema)
         self.structured_extraction = self.llm.with_structured_output(ParsedResumeSchema)
         self.structured_evaluation = self.llm.with_structured_output(CandidateAssessmentSchema)
+        self.structured_questions = self.llm.with_structured_output(InterviewQuestionsSchema)
 
     def generate_job_description(self, requirements: dict[str, Any], feedback: str | None = None) -> JobDescriptionSchema:
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -260,6 +349,37 @@ class GeminiProvider:
         )
 
         return self.structured_evaluation.invoke([sys_msg, HumanMessage(content=user_content)])
+
+    def generate_interview_questions(
+        self,
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        interview_type: str = "technical",
+        focus_areas: list[str] | None = None,
+    ) -> InterviewQuestionsSchema:
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        sys_msg = SystemMessage(content=INTERVIEW_ASSISTANT_SYSTEM_PROMPT)
+        user_content = INTERVIEW_ASSISTANT_USER_PROMPT.format(
+            job_title=job_data.get("title", ""),
+            department=job_data.get("department", "Engineering"),
+            experience_min=job_data.get("experience_min") or 0,
+            experience_max=job_data.get("experience_max") or "Unspecified",
+            required_skills=", ".join(job_data.get("required_skills", [])),
+            responsibilities="\n- ".join([""] + job_data.get("responsibilities", [])),
+            candidate_name=candidate_data.get("candidate_name") or candidate_data.get("full_name", "Candidate"),
+            candidate_summary=candidate_data.get("summary", ""),
+            candidate_skills=", ".join(candidate_data.get("technical_skills", [])),
+            experience_summary="\n".join(
+                [f"- {e.get('title')} at {e.get('company')}: {e.get('description', '')}" for e in candidate_data.get("experience", [])]
+            ) or "Not provided",
+            projects_summary="\n".join(
+                [f"- {p.get('name')}: {p.get('description', '')} ({', '.join(p.get('technologies', []))})" for p in candidate_data.get("projects", [])]
+            ) or "Not provided",
+            interview_type=interview_type,
+            focus_areas=", ".join(focus_areas) if focus_areas else "Standard core requirements",
+        )
+        return self.structured_questions.invoke([sys_msg, HumanMessage(content=user_content)])
 
 
 class OpenAIProvider:
@@ -272,6 +392,7 @@ class OpenAIProvider:
         self.structured_jd = self.llm.with_structured_output(JobDescriptionSchema)
         self.structured_extraction = self.llm.with_structured_output(ParsedResumeSchema)
         self.structured_evaluation = self.llm.with_structured_output(CandidateAssessmentSchema)
+        self.structured_questions = self.llm.with_structured_output(InterviewQuestionsSchema)
 
     def generate_job_description(self, requirements: dict[str, Any], feedback: str | None = None) -> JobDescriptionSchema:
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -339,6 +460,37 @@ class OpenAIProvider:
         )
 
         return self.structured_evaluation.invoke([sys_msg, HumanMessage(content=user_content)])
+
+    def generate_interview_questions(
+        self,
+        job_data: dict[str, Any],
+        candidate_data: dict[str, Any],
+        interview_type: str = "technical",
+        focus_areas: list[str] | None = None,
+    ) -> InterviewQuestionsSchema:
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        sys_msg = SystemMessage(content=INTERVIEW_ASSISTANT_SYSTEM_PROMPT)
+        user_content = INTERVIEW_ASSISTANT_USER_PROMPT.format(
+            job_title=job_data.get("title", ""),
+            department=job_data.get("department", "Engineering"),
+            experience_min=job_data.get("experience_min") or 0,
+            experience_max=job_data.get("experience_max") or "Unspecified",
+            required_skills=", ".join(job_data.get("required_skills", [])),
+            responsibilities="\n- ".join([""] + job_data.get("responsibilities", [])),
+            candidate_name=candidate_data.get("candidate_name") or candidate_data.get("full_name", "Candidate"),
+            candidate_summary=candidate_data.get("summary", ""),
+            candidate_skills=", ".join(candidate_data.get("technical_skills", [])),
+            experience_summary="\n".join(
+                [f"- {e.get('title')} at {e.get('company')}: {e.get('description', '')}" for e in candidate_data.get("experience", [])]
+            ) or "Not provided",
+            projects_summary="\n".join(
+                [f"- {p.get('name')}: {p.get('description', '')} ({', '.join(p.get('technologies', []))})" for p in candidate_data.get("projects", [])]
+            ) or "Not provided",
+            interview_type=interview_type,
+            focus_areas=", ".join(focus_areas) if focus_areas else "Standard core requirements",
+        )
+        return self.structured_questions.invoke([sys_msg, HumanMessage(content=user_content)])
 
 
 def get_llm_provider(provider_type: str | None = None) -> BaseLLMProvider:
