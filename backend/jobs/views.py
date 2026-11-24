@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
@@ -9,9 +10,11 @@ from rest_framework.response import Response
 from organizations.models import Organization, OrganizationMembership
 
 from .filters import JobRequisitionFilter
-from .models import JobRequisition
+from .models import JobDescriptionVersion, JobRequisition
 from .permissions import CAN_MANAGE_JOBS, get_job_membership
 from .serializers import (
+    JobDescriptionVersionSerializer,
+    JobDescriptionVersionWriteSerializer,
     JobRequisitionDetailSerializer,
     JobRequisitionListSerializer,
     JobRequisitionWriteSerializer,
@@ -133,3 +136,74 @@ class JobRequisitionViewSet(viewsets.ModelViewSet):
         self._require_manage_permission(instance.organization)
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # AI Job Description Generation & Versions
+    # ------------------------------------------------------------------
+
+    @action(detail=True, methods=["post"], url_path="generate-jd")
+    def generate_jd(self, request, pk=None):
+        """Initiate AI Job Description Generation workflow."""
+        job = self.get_object()
+        self._require_manage_permission(job.organization)
+
+        from workflows.services import WorkflowOrchestrationService
+        from workflows.serializers import WorkflowExecutionSerializer
+
+        execution = WorkflowOrchestrationService.start_job_description_workflow(
+            job=job,
+            user=request.user,
+        )
+
+        return Response(
+            WorkflowExecutionSerializer(execution).data,
+            status=status.HTTP_202_ACCEPTED if execution.status != "failed" else status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    @action(detail=True, methods=["get"], url_path="versions")
+    def list_versions(self, request, pk=None):
+        """List all generated/saved JD versions for this requisition."""
+        job = self.get_object()
+        versions = job.description_versions.all().select_related("created_by")
+        serializer = JobDescriptionVersionSerializer(versions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["get", "patch"], url_path=r"versions/(?P<version_id>[^/.]+)")
+    def version_detail(self, request, pk=None, version_id=None):
+        """Retrieve or update a specific JD version."""
+        job = self.get_object()
+        version = get_object_or_404(JobDescriptionVersion, id=version_id, job=job)
+
+        if request.method == "PATCH":
+            self._require_manage_permission(job.organization)
+            serializer = JobDescriptionVersionWriteSerializer(version, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            version = serializer.save()
+
+        return Response(JobDescriptionVersionSerializer(version).data)
+
+    @action(detail=True, methods=["post"], url_path=r"versions/(?P<version_id>[^/.]+)/submit-approval")
+    def submit_version_approval(self, request, pk=None, version_id=None):
+        """Submit a specific version for Human Approval."""
+        job = self.get_object()
+        self._require_manage_permission(job.organization)
+        version = get_object_or_404(JobDescriptionVersion, id=version_id, job=job)
+
+        from approvals.models import ApprovalRequest, ApprovalStatus
+        from approvals.serializers import ApprovalRequestSerializer
+
+        version.status = "pending_approval"
+        version.save()
+
+        approval_request, _ = ApprovalRequest.objects.get_or_create(
+            job=job,
+            version=version,
+            status=ApprovalStatus.PENDING,
+            defaults={
+                "organization": job.organization,
+                "requested_by": request.user,
+            },
+        )
+
+        return Response(ApprovalRequestSerializer(approval_request).data, status=status.HTTP_201_CREATED)
+

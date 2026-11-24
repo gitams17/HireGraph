@@ -95,3 +95,46 @@ class JobRequisitionWriteSerializer(serializers.ModelSerializer):
                 {"experience_max": "experience_max must be >= experience_min."}
             )
         return attrs
+
+
+class JobDescriptionVersionSerializer(serializers.ModelSerializer):
+    created_by = UserSerializer(read_only=True)
+    job_id = serializers.UUIDField(source="job.id", read_only=True)
+
+    class Meta:
+        from .models import JobDescriptionVersion
+
+        model = JobDescriptionVersion
+        fields = [
+            "id",
+            "job_id",
+            "version_number",
+            "title",
+            "overview",
+            "responsibilities",
+            "required_qualifications",
+            "preferred_qualifications",
+            "benefits",
+            "raw_content",
+            "status",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class JobDescriptionVersionWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import JobDescriptionVersion
+
+        model = JobDescriptionVersion
+        fields = [
+            "title",
+            "overview",
+            "responsibilities",
+            "required_qualifications",
+            "preferred_qualifications",
+            "benefits",
+            "raw_content",
+        ]
+

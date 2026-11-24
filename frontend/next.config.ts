@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  trailingSlash: true,
+  skipTrailingSlashRedirect: true,
 
   turbopack: {
     rules: {
@@ -26,7 +28,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: `${apiBase}/api/:path*`,
+        destination: `${apiBase}/api/:path*/`,
       },
     ];
   },

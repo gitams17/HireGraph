@@ -73,3 +73,58 @@ class JobRequisition(models.Model):
             raise ValidationError(
                 {"experience_max": "experience_max must be greater than or equal to experience_min."}
             )
+
+
+class VersionStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    PENDING_APPROVAL = "pending_approval", "Pending Approval"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+
+
+class JobDescriptionVersion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job = models.ForeignKey(
+        JobRequisition,
+        on_delete=models.CASCADE,
+        related_name="description_versions",
+    )
+    version_number = models.PositiveIntegerField()
+    title = models.CharField(max_length=255)
+    overview = models.TextField(blank=True, default="")
+    responsibilities = models.JSONField(default=list, blank=True)
+    required_qualifications = models.JSONField(default=list, blank=True)
+    preferred_qualifications = models.JSONField(default=list, blank=True)
+    benefits = models.JSONField(default=list, blank=True)
+    raw_content = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=VersionStatus.choices,
+        default=VersionStatus.DRAFT,
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_jd_versions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-version_number"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["job", "version_number"],
+                name="unique_job_version_number",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["job", "status"], name="jd_version_job_status_idx"),
+            models.Index(fields=["job", "-version_number"], name="jd_version_job_ver_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.job.title} - v{self.version_number} ({self.status})"
+
