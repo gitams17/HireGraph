@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/v1/workflows/", include("workflows.urls")),
     path("api/v1/candidates/", include("candidates.urls")),
     path("api/v1/applications/", include("applications.urls")),
+    path("api/v1/interviews/", include("interviews.urls")),
 ]

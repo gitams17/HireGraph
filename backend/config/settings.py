@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "workflows",
     "candidates",
     "applications",
+    "interviews",
 ]
 
 MIDDLEWARE = [
