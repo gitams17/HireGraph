@@ -406,5 +406,177 @@ export interface ResumeAnalysis {
   updated_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 7: Interview Management
+// ---------------------------------------------------------------------------
+
+export type InterviewType = "technical" | "hr" | "managerial" | "screening" | "culture_fit";
+
+export type InterviewStatus = "scheduled" | "completed" | "cancelled" | "rescheduled";
+
+export type ParticipantRole = "lead" | "interviewer" | "observer" | "scribe";
+
+export type ParticipantStatus = "invited" | "accepted" | "declined" | "tentative";
+
+export type Recommendation = "strong_hire" | "hire" | "neutral" | "no_hire" | "strong_no_hire";
+
+export interface PreparedQuestion {
+  id: string;
+  question: string;
+  category: string;
+  notes?: string;
+  evaluation_criteria?: string;
+}
+
+export interface QuestionScore {
+  question_id: string;
+  score: number;
+  notes: string;
+}
+
+export interface InterviewParticipant {
+  id: string;
+  user: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+  };
+  role: ParticipantRole;
+  status: ParticipantStatus;
+  created_at: string;
+}
+
+export interface InterviewFeedback {
+  id: string;
+  interview: string;
+  interviewer: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+  };
+  rating: number;
+  recommendation: Recommendation;
+  summary: string;
+  strengths: string;
+  areas_for_improvement: string;
+  question_scores: QuestionScore[];
+  submitted_at: string;
+  updated_at: string;
+}
+
+export interface InterviewTemplate {
+  id: string;
+  organization: string;
+  name: string;
+  interview_type: InterviewType;
+  description: string;
+  default_duration_minutes: number;
+  default_questions: PreparedQuestion[];
+  created_by?: {
+    id: string;
+    email: string;
+    full_name: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InterviewListItem {
+  id: string;
+  organization: string;
+  application_id: string;
+  candidate_id: string;
+  candidate_name: string;
+  candidate_email: string;
+  job_id: string;
+  job_title: string;
+  template?: string | null;
+  title: string;
+  interview_type: InterviewType;
+  status: InterviewStatus;
+  scheduled_start: string;
+  scheduled_end: string;
+  location_type: string;
+  meeting_link?: string;
+  location_details?: string;
+  participants: InterviewParticipant[];
+  feedbacks_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InterviewDetail {
+  id: string;
+  organization: string;
+  application: {
+    id: string;
+    stage: string;
+    candidate: {
+      id: string;
+      full_name: string;
+      email: string;
+      phone?: string;
+      linkedin_url?: string;
+      github_url?: string;
+    };
+    job: {
+      id: string;
+      title: string;
+      department: string;
+      required_skills: string[];
+      responsibilities: string[];
+    };
+    resume?: {
+      id: string;
+      file_name: string;
+    } | null;
+    latest_analysis?: {
+      id: string;
+      ats_score: number | null;
+      summary_headline: string;
+    } | null;
+  };
+  template?: string | null;
+  title: string;
+  interview_type: InterviewType;
+  status: InterviewStatus;
+  scheduled_start: string;
+  scheduled_end: string;
+  location_type: string;
+  meeting_link: string;
+  location_details: string;
+  prepared_questions: PreparedQuestion[];
+  notes: string;
+  participants: InterviewParticipant[];
+  feedbacks: InterviewFeedback[];
+  created_by?: {
+    id: string;
+    email: string;
+    full_name: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SuggestedQuestion {
+  id: string;
+  question: string;
+  category: string;
+  evaluation_criteria: string;
+  follow_up_hint?: string;
+}
+
+export interface SuggestedQuestionsResponse {
+  technical_questions: SuggestedQuestion[];
+  behavioural_questions: SuggestedQuestion[];
+  project_questions: SuggestedQuestion[];
+  competency_questions: SuggestedQuestion[];
+}
+
+
 
 

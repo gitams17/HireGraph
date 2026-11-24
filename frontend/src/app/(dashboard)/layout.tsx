@@ -44,6 +44,7 @@ export default function DashboardLayout({
           <NavLink href="/jobs">Jobs</NavLink>
           <NavLink href="/candidates">Candidates</NavLink>
           <NavLink href="/applications">Applications</NavLink>
+          <NavLink href="/interviews">Interviews</NavLink>
           <NavLink href="/settings/profile">Profile</NavLink>
           <NavLink href="/settings/organization">Organisation</NavLink>
           <NavLink href="/settings/members">Members</NavLink>
