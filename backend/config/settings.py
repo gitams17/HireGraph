@@ -28,11 +28,11 @@ def csv_setting(name: str, default: str = "") -> list[str]:
 ALLOWED_HOSTS = csv_setting("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 CORS_ALLOWED_ORIGINS = csv_setting(
     "DJANGO_CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
 )
 CSRF_TRUSTED_ORIGINS = csv_setting(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
 )
 CORS_ALLOW_CREDENTIALS = True
 
@@ -57,6 +57,10 @@ INSTALLED_APPS = [
     "django_filters",
     # Feature apps.
     "jobs",
+    "approvals",
+    "workflows",
+    "candidates",
+    "applications",
 ]
 
 MIDDLEWARE = [
@@ -200,3 +204,41 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------------------------------------------------------------------------
+# Media and Private File Storage
+# ---------------------------------------------------------------------------
+
+PRIVATE_MEDIA_ROOT = Path(os.getenv("PRIVATE_MEDIA_ROOT", BASE_DIR / "media_private"))
+MAX_RESUME_SIZE_BYTES = int(os.getenv("MAX_RESUME_SIZE_MB", "10")) * 1024 * 1024  # 10 MB default
+
+# ---------------------------------------------------------------------------
+# Celery Configuration
+# ---------------------------------------------------------------------------
+
+CELERY_BROKER_URL = os.getenv(
+    "CELERY_BROKER_URL",
+    f"redis://:{os.getenv('REDIS_PASSWORD', 'local-redis-password-change-me')}"
+    f"@{os.getenv('REDIS_HOST', '127.0.0.1')}"
+    f":{os.getenv('REDIS_PORT', '6379')}/2",
+)
+CELERY_RESULT_BACKEND = os.getenv(
+    "CELERY_RESULT_BACKEND",
+    f"redis://:{os.getenv('REDIS_PASSWORD', 'local-redis-password-change-me')}"
+    f"@{os.getenv('REDIS_HOST', '127.0.0.1')}"
+    f":{os.getenv('REDIS_PORT', '6379')}/3",
+)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "False").strip().lower() in {"1", "true", "yes", "on"}
+
+# ---------------------------------------------------------------------------
+# LLM & AI Orchestration Settings
+# ---------------------------------------------------------------------------
+
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "fake")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+

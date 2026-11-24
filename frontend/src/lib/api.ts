@@ -78,6 +78,26 @@ export const api = {
 
   delete: <T>(path: string): Promise<T> =>
     request<T>(path, { method: "DELETE" }),
+
+  upload: async <T>(path: string, formData: FormData): Promise<T> => {
+    const headers: Record<string, string> = {};
+    const token = getCsrfToken();
+    if (token) headers["X-CSRFToken"] = token;
+
+    const response = await fetch(path, {
+      method: "POST",
+      body: formData,
+      headers,
+      credentials: "include",
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const err: ApiError = { status: response.status, data: body };
+      throw err;
+    }
+    return body as T;
+  },
 };
 
 // ---------------------------------------------------------------------------

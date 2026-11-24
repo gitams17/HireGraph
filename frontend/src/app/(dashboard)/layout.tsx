@@ -24,15 +24,13 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <div className="flex flex-1 items-center justify-center min-h-screen">
-        <span className="text-sm text-zinc-400">Loading…</span>
+      <div className="flex flex-1 items-center justify-center min-h-screen bg-zinc-50">
+        <span className="text-sm font-medium text-zinc-500">Loading…</span>
       </div>
     );
   }
-
-  if (!user) return null;
 
   return (
     <div className="flex min-h-screen">
@@ -44,6 +42,8 @@ export default function DashboardLayout({
         <nav className="flex-1 px-4 py-4 space-y-1">
           <NavLink href="/dashboard">Dashboard</NavLink>
           <NavLink href="/jobs">Jobs</NavLink>
+          <NavLink href="/candidates">Candidates</NavLink>
+          <NavLink href="/applications">Applications</NavLink>
           <NavLink href="/settings/profile">Profile</NavLink>
           <NavLink href="/settings/organization">Organisation</NavLink>
           <NavLink href="/settings/members">Members</NavLink>
