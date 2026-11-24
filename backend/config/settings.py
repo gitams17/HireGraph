@@ -53,6 +53,10 @@ INSTALLED_APPS = [
     "accounts",
     "organizations",
     "core",
+    # Third-party DRF ecosystem.
+    "django_filters",
+    # Feature apps.
+    "jobs",
 ]
 
 MIDDLEWARE = [
@@ -161,6 +165,12 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     # Return 403 (not 401) for unauthenticated requests because we use session auth.
     "UNAUTHENTICATED_USER": None,
+    # Global filter backends (can be overridden per-view).
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ],
 }
 
 # ---------------------------------------------------------------------------
